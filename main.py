@@ -122,4 +122,4 @@ if __name__ == '__main__':
         if args.verbose:
             raise
         else:
-            log.error('Fatal error occured, rerty with -v for details')
+            log.error('Fatal error occurred, rerty with -v for details')
