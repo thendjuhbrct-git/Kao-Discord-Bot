@@ -1,3 +1,5 @@
 .env
+bot.log
 
-/.venv/
+*/.venv/
+*/__pycache__/
