@@ -3,3 +3,6 @@ bot.log
 
 */.venv/
 */__pycache__/
+
+configs/*
+!/configs/template.json
