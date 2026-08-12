@@ -18,12 +18,15 @@ class Configs(commands.Cog):
 
         target_dir = os.path.join(root_dir, 'configs', str(guild.id))
 
-        template_path = os.path.join(root_dir, 'configs', 'template.json')
-        destination_path = os.path.join(target_dir, 'config.json')
+        config_template_path = os.path.join(root_dir, 'configs', 'template_config.json')
+        data_template_path = os.path.join(root_dir, 'configs', 'template_data.json')
+        config_destination_path = os.path.join(target_dir, 'config.json')
+        data_destination_path = os.path.join(target_dir, 'data.json')
 
         try:
             os.makedirs(target_dir, exist_ok=True)
-            shutil.copy2(template_path, destination_path)
+            shutil.copy2(config_template_path, config_destination_path)
+            shutil.copy2(data_template_path, data_destination_path)
 
             log.info('The bot has been added to the guild %s; configuration file successfully created.', guild.name)
         except Exception as e:
