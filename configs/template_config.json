@@ -1,0 +1,17 @@
+{
+    "cogs" : {
+        "counting" : {
+            "allow floating numbers": false,
+            "channel id": "123456789012345678",
+            "checkpoints" : {
+                "enabled": false,
+                "distance between checkpoints": 100
+            },
+            "enabled": false,
+            "mute users who break the chain": {
+                "duration": 3600,
+                "enabled": false
+            }
+        }
+    }
+}
