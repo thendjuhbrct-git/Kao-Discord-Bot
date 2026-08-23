@@ -87,6 +87,10 @@ class Bot(commands.AutoShardedBot):
             if path.stem.startswith("_"):
                 continue
 
+            if path.stem == "debug" and not self.dev_mode:
+                log.info('Skipping debug cog (dev mode disabled).')
+                continue
+            
             extension = f'cogs.{path.stem}'
             try:
                 await self.load_extension(extension)
