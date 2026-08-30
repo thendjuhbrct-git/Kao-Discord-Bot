@@ -1,7 +1,7 @@
 import logging
 
 import discord
-from discord.ext import commands
+from discord.ext import COLOUR, commands
 
 from utils import load_config
 
@@ -24,7 +24,7 @@ class Component(discord.ui.LayoutView):
                     media=pfp
                 ),
             ),
-            accent_colour = discord.Colour(13751771)
+            accent_colour = discord.Colour(COLOUR)
         )
 
         self.add_item(self.container)
