@@ -12,6 +12,20 @@
                 "duration": 3600,
                 "enabled": false
             }
+        },
+        "farewell messages" : {
+            "channel id": "123456789012345678",
+            "enabled": false,
+            "ignore bots": true,
+            "subtitle": "See you soon on {member.guild.name}",
+            "title": "Goodbye {member.mention}"
+        },
+        "welcome messages" : {
+            "channel id": "123456789012345678",
+            "enabled": false,
+            "ignore bots": true,
+            "subtitle": "Welcome to the {member.guild.name} Discord server",
+            "title": "Welcome {member.mention} !"
         }
     }
 }

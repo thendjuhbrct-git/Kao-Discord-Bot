@@ -5,6 +5,8 @@ import shutil
 
 import discord
 
+COLOUR = 13751771
+
 log = logging.getLogger(__name__)
 
 def load_config(guild: discord.Guild) -> dict:
