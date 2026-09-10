@@ -41,6 +41,9 @@ class WelcomeMessages(commands.Cog):
 
         if not enabled: return
 
+        ignore_bots = bool(config.get('cogs', {}).get('welcome messages', {}).get('ignore bots', True))
+        if ignore_bots and member.bot: return
+
         raw_channel_id = config.get('cogs', {}).get('welcome messages', {}).get('channel id', None)
         if raw_channel_id is not None:
             channel_id = int(raw_channel_id)
