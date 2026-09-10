@@ -32,6 +32,8 @@ class Counting(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
+        if message.guild is None: return
+
         async with self._get_lock(message.guild.id):
             if message.author.bot: return
 
