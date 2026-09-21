@@ -13,10 +13,20 @@ DISBOARD_ID = 123456789012345678
 log = logging.getLogger(__name__)
 
 class Components(discord.ui.LayoutView):
-    container = discord.ui.Container(
-        discord.ui.TextDisplay(content="**⏰ It's time to </bump:947088344167366698> the server again.**"),
-        accent_colour=discord.Colour(COLOUR)
-    )
+    def __init__(
+            self,
+            role: discord.Role | None = None
+    ) -> None:
+        super().__init__()
+
+        self.container = discord.ui.Container(
+            discord.ui.TextDisplay(content="**⏰ It's time to </bump:947088344167366698> the server again.**"),
+            accent_colour=discord.Colour(COLOUR)
+        )
+
+        if role:
+            self.add_item(discord.ui.TextDisplay(content=role.mention))
+        self.add_item(self.container)
 
 class BumpReminder(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -68,27 +78,28 @@ class BumpReminder(commands.Cog):
             if channel is None:
                 try:
                     channel = await self.bot.fetch_channel(channel_id)
-                except:
+                except discord.HTTPException:
                     return log.warning("Someone sent a message but the bot couldn't retrieve the channel from the id given in the configuration file of the server %s.", guild.id)
         else:
             return log.warning("Someone sent a message but the bot couldn't retrieve the channel id from the confiuration file of the server %s.", guild.id)
 
+        role = None
+        role_id = None
+
         raw_role_id = config.get('cogs', {}).get('bump reminder', {}).get('ping role', None)
         if raw_role_id is not None:
             role_id = int(raw_role_id)
-        else:
-            return log.warning('Someone sent a message but the configuration file for the server %s was invalid.', guild.name)
 
         if role_id:
             role = guild.get_role(role_id)
 
             if role is None:
-                role = await guild.fetch_role(role_id)
+                try:
+                    role = await guild.fetch_role(role_id)
+                except discord.HTTPException:
+                    role = None
 
-        if role:
-            await channel.send(conent=role.mention, view=Components())
-        else:
-            await channel.send(view=Components())
+        await channel.send(view=Components(role=role), allowed_mentions=discord.AllowedMentions(roles=[role] if role else []))
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
