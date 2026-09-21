@@ -60,7 +60,7 @@ class BumpReminder(commands.Cog):
         if raw_channel_id is not None:
             channel_id = int(raw_channel_id)
         else:
-            return log.warning('Someone sent a message but the configuration file for the server %s was invalid.', message.guild.name)
+            return log.warning('Someone sent a message but the configuration file for the server %s was invalid.', guild.name)
         
         if channel_id:
             channel = self.bot.get_channel(channel_id)
@@ -69,9 +69,9 @@ class BumpReminder(commands.Cog):
                 try:
                     channel = await self.bot.fetch_channel(channel_id)
                 except:
-                    return log.warning("Someone sent a message but the bot couldn't retrieve the channel from the id given in the configuration file of the server %s.", message.guild.id)
+                    return log.warning("Someone sent a message but the bot couldn't retrieve the channel from the id given in the configuration file of the server %s.", guild.id)
         else:
-            return log.warning("Someone sent a message but the bot couldn't retrieve the channel id from the confiuration file of the server %s.", message.guild.id)
+            return log.warning("Someone sent a message but the bot couldn't retrieve the channel id from the confiuration file of the server %s.", guild.id)
         
         await channel.send(view=Components())
 
@@ -79,6 +79,8 @@ class BumpReminder(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.guild is None: return
         if not message.author.id == DISBOARD_ID: return
+
+        config = load_config(guild=message.guild)
 
         enabled = bool(config.get('cogs', {}).get('bump reminder', {}).get('enabled', False))
 
