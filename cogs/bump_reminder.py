@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 class Components(discord.ui.LayoutView):
     container = discord.ui.Container(
-        discord.ui.TextDisplay(content="# ⏰ It's time to </bump:947088344167366698> the server again."),
+        discord.ui.TextDisplay(content="**⏰ It's time to </bump:947088344167366698> the server again.**"),
         accent_colour=discord.Colour(COLOUR)
     )
 
@@ -72,8 +72,23 @@ class BumpReminder(commands.Cog):
                     return log.warning("Someone sent a message but the bot couldn't retrieve the channel from the id given in the configuration file of the server %s.", guild.id)
         else:
             return log.warning("Someone sent a message but the bot couldn't retrieve the channel id from the confiuration file of the server %s.", guild.id)
-        
-        await channel.send(view=Components())
+
+        raw_role_id = config.get('cogs', {}).get('bump reminder', {}).get('ping role', None)
+        if raw_role_id is not None:
+            role_id = int(raw_role_id)
+        else:
+            return log.warning('Someone sent a message but the configuration file for the server %s was invalid.', guild.name)
+
+        if role_id:
+            role = guild.get_role(channel_id)
+
+            if role is None:
+                role = await guild.fetch_role(channel_id)
+
+        if role:
+            await channel.send(conent=role.mention, view=Components())
+        else:
+            await channel.send(view=Components())
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
