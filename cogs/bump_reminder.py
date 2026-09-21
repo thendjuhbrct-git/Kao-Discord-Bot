@@ -80,10 +80,10 @@ class BumpReminder(commands.Cog):
             return log.warning('Someone sent a message but the configuration file for the server %s was invalid.', guild.name)
 
         if role_id:
-            role = guild.get_role(channel_id)
+            role = guild.get_role(role_id)
 
             if role is None:
-                role = await guild.fetch_role(channel_id)
+                role = await guild.fetch_role(role_id)
 
         if role:
             await channel.send(conent=role.mention, view=Components())
