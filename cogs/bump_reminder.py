@@ -8,7 +8,7 @@ from discord.ext import commands
 from utils import COLOUR, load_config, load_data, write_data
 
 COOLDOWN = 7200
-DISBOARD_ID = 123456789012345678
+DISBOARD_ID = 302050872383242240
 
 log = logging.getLogger(__name__)
 
