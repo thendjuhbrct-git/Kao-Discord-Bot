@@ -34,7 +34,7 @@ class FarewellMessages(commands.Cog):
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_member_leave(self, member: discord.Member) -> None:
+    async def on_member_remove(self, member: discord.Member) -> None:
         config = load_config(member.guild)
 
         enabled = bool(config.get('cogs', {}).get('farewell messages', {}).get('enabled', False))
