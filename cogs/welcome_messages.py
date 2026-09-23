@@ -1,9 +1,9 @@
 import logging
 
 import discord
-from discord.ext import COLOUR, commands
+from discord.ext import commands
 
-from utils import load_config
+from utils import COLOUR, load_config
 
 log = logging.getLogger(__name__)
 

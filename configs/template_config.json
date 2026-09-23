@@ -1,5 +1,10 @@
 {
     "cogs" : {
+        "bump reminder" : {
+            "channel id": "123456789012345678",
+            "enabled": false,
+            "ping role": null
+        },
         "counting" : {
             "allow floating numbers": false,
             "channel id": "123456789012345678",
