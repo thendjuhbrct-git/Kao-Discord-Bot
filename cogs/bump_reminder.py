@@ -1,31 +1,29 @@
 import asyncio
+import json
 import logging
 import time
 
 import discord
 from discord.ext import commands
 
-from utils import COLOUR, load_config, load_data, write_data
-
-COOLDOWN = 7200
-DISBOARD_ID = 302050872383242240
+from utils import COLOUR, DISBOARD_BUMP_COMMAND_ID, DISBOARD_COOLDOWN, DISBOARD_ID, get_data, write_data
 
 log = logging.getLogger(__name__)
 
 class Components(discord.ui.LayoutView):
     def __init__(
             self,
-            role: discord.Role | None = None
+            role: str | None = None
     ) -> None:
         super().__init__()
 
         self.container = discord.ui.Container(
-            discord.ui.TextDisplay(content="**⏰ It's time to </bump:947088344167366698> the server again.**"),
+            discord.ui.TextDisplay(content=f"**⏰ It's time to </bump:{DISBOARD_BUMP_COMMAND_ID}> the server again.**"),
             accent_colour=discord.Colour(COLOUR)
         )
 
         if role:
-            self.add_item(discord.ui.TextDisplay(content=role.mention))
+            self.add_item(discord.ui.TextDisplay(content=role))
         self.add_item(self.container)
 
 class BumpReminder(commands.Cog):
@@ -34,10 +32,10 @@ class BumpReminder(commands.Cog):
         self.tasks: dict[int, asyncio.Task] = {}
 
     async def cog_load(self) -> None:
-        self.restore_task = asyncio.create_task(self.restore())
+        self.restore_tasks = asyncio.create_task(self.restore())
 
     async def cog_unload(self) -> None:
-        self.restore_task.cancel()
+        self.restore_tasks.cancel()
         for task in self.tasks.values():
             task.cancel()
         self.tasks.clear()
@@ -45,10 +43,10 @@ class BumpReminder(commands.Cog):
     async def restore(self) -> None:
         await self.bot.wait_until_ready()
         for guild in self.bot.guilds:
-            when = load_data(guild=guild).get('bump', {}).get('next bump')
-            if when is not None:
+            when = (await get_data(guild, 'bump_reminder'))['next_bump']
+            if when:
                 self.schedule(guild, when)
-    
+
     def schedule(self, guild: discord.Guild, when: float) -> None:
         old = self.tasks.pop(guild.id, None)
         if old:
@@ -58,67 +56,45 @@ class BumpReminder(commands.Cog):
     async def remind(self, guild: discord.Guild, when: float) -> None:
         await asyncio.sleep(max(0, when - time.time()))
 
-        config = load_config(guild=guild)
-        data = load_data(guild=guild)
-        
-        data['bump']['next bump'] = None
-        write_data(guild, data)
-        
+        row = await get_data(guild, 'bump_reminder')
+        await write_data(guild, 'bump_reminder', {'next_bump': None})
+
         self.tasks.pop(guild.id, None)
+        if not row['enabled']: return
 
-        raw_channel_id = config.get('cogs', {}).get('bump reminder', {}).get('channel id', None)
-        if raw_channel_id is not None:
-            channel_id = int(raw_channel_id)
-        else:
-            return log.warning('Someone sent a message but the configuration file for the server %s was invalid.', guild.name)
-        
-        if channel_id:
-            channel = self.bot.get_channel(channel_id)
+        raw_channel_id = row['channel_id']
+        if not raw_channel_id: return
 
-            if channel is None:
-                try:
-                    channel = await self.bot.fetch_channel(channel_id)
-                except discord.HTTPException:
-                    return log.warning("Someone sent a message but the bot couldn't retrieve the channel from the id given in the configuration file of the server %s.", guild.id)
-        else:
-            return log.warning("Someone sent a message but the bot couldn't retrieve the channel id from the confiuration file of the server %s.", guild.id)
+        channel = self.bot.get_channel(int(raw_channel_id))
+        if not isinstance(channel, discord.abc.Messageable): return
 
-        role = None
-        role_id = None
+        raw_ping_ids = json.loads(row['pings'])
+        pings = [guild.get_role(ping_id) for ping_id in raw_ping_ids]
+        pings = [role for role in pings if role is not None]
 
-        raw_role_id = config.get('cogs', {}).get('bump reminder', {}).get('ping role', None)
-        if raw_role_id is not None:
-            role_id = int(raw_role_id)
-
-        if role_id:
-            role = guild.get_role(role_id)
-
-            if role is None:
-                try:
-                    role = await guild.fetch_role(role_id)
-                except discord.HTTPException:
-                    role = None
-
-        await channel.send(view=Components(role=role), allowed_mentions=discord.AllowedMentions(roles=[role] if role else []))
+        try:
+            await channel.send(view=Components(role=', '.join(role.mention for role in pings)))
+        except discord.HTTPException:
+            log.exception('Failed to send the bump reminder in guild %s (id: %s)', guild.name, guild.id)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if message.guild is None: return
         if not message.author.id == DISBOARD_ID: return
 
-        config = load_config(guild=message.guild)
-
-        enabled = bool(config.get('cogs', {}).get('bump reminder', {}).get('enabled', False))
+        row = await get_data(message.guild, 'bump_reminder')
+        enabled = bool(row['enabled'])
 
         if not enabled: return
 
-        data = load_data(guild=message.guild)
-        when = int(time.time()) + COOLDOWN
+        interaction = message.interaction
+        if interaction is None or interaction.name != 'bump': return
 
-        data['bump']['next bump'] = when
-        write_data(message.guild, data)
+        when = int(time.time()) + DISBOARD_COOLDOWN
+
+        await write_data(message.guild, 'bump_reminder', {'next_bump': when})
 
         self.schedule(message.guild, when)
-
+    
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(BumpReminder(bot))

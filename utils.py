@@ -13,6 +13,9 @@ db: aiosqlite.Connection
 write_lock = asyncio.Lock()
 
 COLOUR = 13751771
+DISBOARD_BUMP_COMMAND_ID = 947088344167366698
+DISBOARD_COOLDOWN = 7200
+DISBOARD_ID = 302050872383242240
 
 async def migrate(schema: str):
     async with aiosqlite.connect(':memory:') as ref:
