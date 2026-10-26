@@ -1,89 +1,106 @@
+from pathlib import Path
+import asyncio
 import logging
-import json
-import os
-import shutil
 
+import aiosqlite
 import discord
-
-COLOUR = 13751771
 
 log = logging.getLogger(__name__)
 
-def load_config(guild: discord.Guild) -> dict:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+TABLES = {'general', 'bump_reminder', 'counting', 'farewell_messages', 'welcome_messages'}
+DATA_DIR = Path(__file__).parent / 'data'
+db: aiosqlite.Connection
+write_lock = asyncio.Lock()
 
-    template_path = os.path.join(script_dir, 'configs', 'template_config.json')
-    target_dir = os.path.join(script_dir, 'configs', str(guild.id))
-    target_file = os.path.join(target_dir, 'config.json')
+COLOUR = 13751771
 
-    try:
-        with open(target_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return data
-        
-    except FileNotFoundError:
-        os.makedirs(target_dir, exist_ok=True)
-        shutil.copy2(template_path, target_file)
+async def migrate(schema: str):
+    async with aiosqlite.connect(':memory:') as ref:
+        await ref.executescript(schema)
+        async with ref.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        ) as cursor:
+            tables = await cursor.fetchall()
 
-        with open(template_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-            log.warning("The bot tried to read the config file for the guild %s but it didn't exist, creating one instead.", guild.name)
-            return data
+        for table, create_sqlite in tables:
+            async with ref.execute(f'PRAGMA table_info({table})') as cursor:
+                wanted = {tuple(row[1:]) for row in await cursor.fetchall()}
+            async with db.execute(f'PRAGMA table_info({table})') as cursor:
+                current = {tuple(row[1:]) for row in await cursor.fetchall()}
+            if wanted == current:
+                continue
 
-    except json.JSONDecodeError:
-        os.remove(target_file)
-        shutil.copy2(template_path, target_file)
+            log.info('Migrating table %s', table)
+            common = ', '.join({col[0] for col in wanted} & {col[0] for col in current})
+            try:
+                await db.execute('BEGIN')
+                await db.execute(f'ALTER TABLE {table} RENAME TO {table}_old')
+                await db.execute(create_sqlite)
+                await db.execute(f'INSERT INTO {table} ({common}) SELECT {common} FROM {table}_old')
+                await db.execute(f'DROP TABLE {table}_old')
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
 
-        with open(template_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-            log.warning('The bot tried to read the config file for the guild %s but it was corrupted, creating a new one instead.', guild.name)
-            return data
+async def init_db():
+    global db
 
-def load_data(guild: discord.Guild) -> dict:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR.mkdir(exist_ok=True)
 
-    template_path = os.path.join(script_dir, 'configs', 'template_data.json')
-    target_dir = os.path.join(script_dir, 'configs', str(guild.id))
-    target_file = os.path.join(target_dir, 'data.json')
+    db = await aiosqlite.connect(DATA_DIR / 'data.db')
+    db.row_factory = aiosqlite.Row
 
-    try:
-        with open(target_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+    schema = (DATA_DIR / 'schema.sql').read_text(encoding='utf-8')
 
-            return data
-            
-    except FileNotFoundError:
-        os.makedirs(target_dir, exist_ok=True)
-        shutil.copy2(template_path, target_file)
+    await db.executescript(schema)
+    await migrate(schema)
 
-        with open(template_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+async def get_data(guild: discord.Guild | int, table: str):
+    if table not in TABLES:
+        raise ValueError(f'Unknown table : {table}')
 
-            log.warning("The bot tried to read the data file for the guild %s but it didn't exist, creating one instead.", guild.name)
-            return data
+    if isinstance(guild, discord.Guild):
+        guild = guild.id
+    
+    await db.execute(f'INSERT OR IGNORE INTO {table} (guild_id) VALUES (?)', (guild,))
+    await db.commit()
+    
+    async with db.execute(f'SELECT * FROM {table} WHERE guild_id = ?', (guild,)) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        raise LookupError(f'No row in {table} for {guild}')
 
-    except json.JSONDecodeError:
-        os.remove(target_file)
-        shutil.copy2(template_path, target_file)
+    return dict(row)
 
-        with open(template_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+async def write_data(guild: discord.Guild | int, table: str, values: dict):
+    if table not in TABLES:
+        raise ValueError(f'Unknown table : {table}')
 
-            log.warning('The bot tried to read the data file for the guild %s but it was corrupted, creating a new one instead.', guild.name)
-            return data
+    if isinstance(guild, discord.Guild):
+        guild = guild.id
 
-def write_data(guild: discord.Guild, data: dict) -> None:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    columns = ', '.join(f'{column} = ?' for column in values)
 
-    target_dir = os.path.join(script_dir, 'configs', str(guild.id))
-    target_file = os.path.join(target_dir, 'data.json')
+    async with write_lock:
+        await db.execute(f'INSERT OR IGNORE INTO {table} (guild_id) VALUES (?)', (guild,))
+        await db.execute(f'UPDATE {table} set {columns} WHERE guild_id = ?', (*values.values(), guild))
+        await db.commit()
 
-    os.makedirs(target_dir, exist_ok=True)
+async def add_guild_to_db(guild: discord.Guild | int):
+    if isinstance(guild, discord.Guild):
+        guild = guild.id
+    
+    async with write_lock:
+        for table in TABLES:
+            await db.execute(f'INSERT OR IGNORE INTO {table} (guild_id) VALUES (?)', (guild,))
+        await db.commit()
 
-    with open(target_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-
-
-        
+async def remove_guild_from_db(guild: discord.Guild | int):
+    if isinstance(guild, discord.Guild):
+        guild = guild.id
+    
+    async with write_lock:
+        for table in TABLES:
+            await db.execute(f'DELETE FROM {table} WHERE guild_id = ?', (guild,))
+        await db.commit()

@@ -8,9 +8,12 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
+from utils import init_db
+import utils
+
 load_dotenv()
 
-TOKEN = os.getenv('DISCORD_TOKEN')
+TOKEN = os.getenv('DISCORD_TOKEN') or ''
 if not TOKEN:
     raise RuntimeError(
         'DISCORD_TOKEN missing. Create a .env file with DISCORD_TOKEN=...'
@@ -62,6 +65,7 @@ class Bot(commands.AutoShardedBot):
         self.dev_mode = dev_mode
 
     async def setup_hook(self) -> None:
+        await init_db()
         await self._load_cogs()
 
         if self.dev_mode:
@@ -106,6 +110,12 @@ class Bot(commands.AutoShardedBot):
             len(self.guilds),
             self.shard_count or 1,
         )
+
+    async def close(self) -> None:
+        db = getattr(utils, 'db', None)
+        if db:
+            await db.close()
+        await super().close()
 
 async def main() -> None:
     args = parse_args()
